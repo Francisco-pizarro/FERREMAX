@@ -8,6 +8,8 @@ import requests
 from .transbank_integration import iniciar_transaccion, confirmar_transaccion
 from django.utils import timezone
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from django.http import Http404
 
 
 def conectar_api():
@@ -71,17 +73,20 @@ class ProductoDetallePorNombre(generics.RetrieveAPIView):
     lookup_field = 'nombre'
 
     def retrieve(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            serializer = self.get_serializer(instance)
-            dolar = conectar_api()
-            precio_producto_dolar = round(instance.precio / dolar, 2)
-            data = serializer.data
-            data['precio_producto_dolar'] = precio_producto_dolar
-            return Response(data)
-        except Producto.DoesNotExist:
-            return Response({"error": "No existe el producto."}, status=status.HTTP_404_NOT_FOUND)
+        instance = get_object_or_404(self.get_queryset(), nombre=self.kwargs['nombre'])
+        serializer = self.get_serializer(instance)
+        dolar = conectar_api()
+        precio_producto_dolar = round(instance.precio / dolar, 2)
+        data = serializer.data
+        data['precio_producto_dolar'] = precio_producto_dolar
+        return Response(data)
 
+    def handle_exception(self, exc):
+        if isinstance(exc, Http404):
+            return Response({'error': 'No existe el producto.'}, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
+    
+    
 class ProductoCrear(generics.CreateAPIView):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
